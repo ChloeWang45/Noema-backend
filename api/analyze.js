@@ -1,16 +1,13 @@
 import OpenAI from "openai";
 
 export default async function handler(req, res) {
-  // ---- FIX CORS ----
+  // ---- CORS ----
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
-    return res.status(200).end(); // Preflight success
+    return res.status(200).end();
   }
 
   if (req.method !== "POST") {
@@ -30,21 +27,65 @@ export default async function handler(req, res) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const prompt = `Hey! I need your help organizing these thoughts... (KEPT EXACTLY THE SAME)`;
+    // ---------- FIXED PROMPT ----------
+    const prompt = `
+You MUST respond ONLY in valid JSON. 
+The final answer must match the exact JSON structure shown below.
 
+Hey! I need your help organizing these thoughts and finding connections I might have missed.
+
+CRITICAL REQUIREMENT: You MUST include EVERY SINGLE user note exactly as written. Do not modify the wording. Each must appear once with "aiGenerated": false.
+
+Here are the notes:
+${notes.map((note, i) => `${i + 1}. ${note}`).join("\n")}
+
+Here is the EXACT JSON format you MUST follow:
+
+{
+  "themes": [
+    {
+      "name": "Specific Theme Name",
+      "insight": "Quick insight about this theme (1-2 sentences)",
+      "notes": [
+        { "text": "EXACT TEXT from a user note", "aiGenerated": false },
+        { "text": "EXACT TEXT from a different user note", "aiGenerated": false },
+        {
+          "text": "Your NEW AI-generated insight connecting specific notes",
+          "aiGenerated": true
+        }
+      ]
+    }
+  ],
+  "insights": [
+    {
+      "title": "Connection Title",
+      "description": "Explanation of how themes relate using specific user notes",
+      "connectedThemes": ["Theme Name 1", "Theme Name 2"]
+    }
+  ]
+}
+
+CRITICAL RULES:
+- Your response MUST be valid JSON.
+- EVERY user note must appear once with aiGenerated=false.
+- New notes must have aiGenerated=true.
+- Do not output anything outside the JSON.
+`;
+
+    // ---------- FIXED OPENAI CALL ----------
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "You are a helpful assistant who excels at finding connections between ideas...",
+            "You are a helpful assistant who outputs ONLY valid JSON. Never include commentary outside of JSON.",
         },
         { role: "user", content: prompt }
       ],
+      response_format: { type: "json_object" },
       temperature: 0.8,
       max_tokens: 3000,
-      response_format: { type: "json_object" },
     });
 
     const result = JSON.parse(completion.choices[0].message.content);
