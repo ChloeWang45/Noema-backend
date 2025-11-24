@@ -1,16 +1,17 @@
 import OpenAI from "openai";
 
 export default async function handler(req, res) {
-  // --- CORS HEADERS (required for GitHub Pages frontend) ---
+  // ---- FIX CORS ----
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
-  // Handle preflight request
   if (req.method === "OPTIONS") {
-    return res.status(200).end();
+    return res.status(200).end(); // Preflight success
   }
-  // ----------------------------------------------------------
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -39,10 +40,7 @@ export default async function handler(req, res) {
           content:
             "You are a helpful assistant who excels at finding connections between ideas...",
         },
-        {
-          role: "user",
-          content: prompt,
-        },
+        { role: "user", content: prompt }
       ],
       temperature: 0.8,
       max_tokens: 3000,
@@ -50,25 +48,10 @@ export default async function handler(req, res) {
     });
 
     const result = JSON.parse(completion.choices[0].message.content);
-
-    if (!result.themes || !result.insights) {
-      throw new Error("Invalid response structure from OpenAI");
-    }
-
     return res.status(200).json(result);
+
   } catch (error) {
     console.error("Error in /api/analyze:", error);
-
-    if (error.response?.status === 401) {
-      return res.status(401).json({
-        error: "Invalid OpenAI API key.",
-      });
-    }
-    if (error.response?.status === 429) {
-      return res.status(429).json({
-        error: "Rate limit exceeded.",
-      });
-    }
 
     return res.status(500).json({
       error: "Failed to analyze notes.",
